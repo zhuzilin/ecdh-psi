@@ -8,7 +8,16 @@ import (
 
 var curve = elliptic.P256()
 
-func Hash(elements []*big.Int) [][]byte {
+func Hash(elements [][]byte) [][]byte {
+	hashes := make([]([]byte), 0)
+	for _, element := range elements {
+		sha := sha256.Sum256(element)
+		hashes = append(hashes, sha[:])
+	}
+	return hashes
+}
+
+func HashBigInt(elements []*big.Int) [][]byte {
 	hashes := make([]([]byte), 0)
 	for _, element := range elements {
 		sha := sha256.Sum256(element.Bytes())

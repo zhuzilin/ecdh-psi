@@ -5,7 +5,7 @@ import (
 	"math/rand"
 )
 
-func Step1(elements []*big.Int) ([][]byte, *big.Int, []*big.Int, []*big.Int) {
+func Step1(elements [][]byte) ([][]byte, *big.Int, []*big.Int, []*big.Int) {
 	// Hash each elements with sha256.
 	hashes := Hash(elements)
 	// Pick a random exponent.
@@ -21,20 +21,21 @@ func Step2(peerXs []*big.Int, peerYs []*big.Int, exponent *big.Int) [][]byte {
 	// Exp the peer points with the random exponent.
 	Exp(peerXs, peerYs, exponent)
 	// Hash the peer x.
-	peerHashes := Hash(peerXs)
+	peerHashes := HashBigInt(peerXs)
 	return peerHashes
 }
 
-func Intersect(hashes [][]byte, peerHashes [][]byte, elements []*big.Int) []string {
+// Return the intersection index
+func Intersect(hashes [][]byte, peerHashes [][]byte) []int {
 	hashSet := make(map[string]bool)
 	for _, peerHash := range peerHashes {
 		hashSet[string(peerHash)] = true
 	}
 
-	intersection := make([]string, 0)
+	intersection := make([]int, 0)
 	for i, hash := range hashes {
 		if _, ok := hashSet[string(hash)]; ok {
-			intersection = append(intersection, elements[i].String())
+			intersection = append(intersection, i)
 		}
 	}
 	return intersection

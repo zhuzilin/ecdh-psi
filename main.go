@@ -27,6 +27,14 @@ func createValues(n int) []*big.Int {
 	return elements
 }
 
+func elementsToBytes(elements []*big.Int) [][]byte {
+	elementBytes := make([][]byte, 0)
+	for _, element := range elements {
+		elementBytes = append(elementBytes, element.Bytes())
+	}
+	return elementBytes
+}
+
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
@@ -60,9 +68,10 @@ func main() {
 	elements := createValues(NUM_ELEMENT)
 	fmt.Printf("role: %v\n", *role)
 	fmt.Printf("elements of %v: %v\n", *role, elements)
+	elementBytes := elementsToBytes(elements)
 
 	// Step 1 for ECDH PSI.
-	hashes, exponent, xs, ys := ecdh.Step1(elements)
+	hashes, exponent, xs, ys := ecdh.Step1(elementBytes)
 
 	// Send xs, ys to peer and receive the peerXs, peerYs.
 	peerXs := make([]*big.Int, 0)
@@ -90,8 +99,13 @@ func main() {
 		copy(hashes[i], buf)
 	}
 
-	// Get the intersection.
-	intersection := ecdh.Intersect(hashes, peerHashes, elements)
+	// Get the intersection index.
+	intersection := ecdh.Intersect(hashes, peerHashes)
 
-	fmt.Printf("intersection: %v\n", intersection)
+	intersectElements := make([]string, 0)
+	for _, i := range intersection {
+		intersectElements = append(intersectElements, elements[i].String())
+	}
+
+	fmt.Printf("intersection: %v\n", intersectElements)
 }
