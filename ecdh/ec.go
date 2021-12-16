@@ -1,4 +1,4 @@
-package main
+package ecdh
 
 import (
 	"crypto/elliptic"

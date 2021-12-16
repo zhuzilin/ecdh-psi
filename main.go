@@ -1,13 +1,13 @@
 package main
 
 import (
-	"crypto/elliptic"
-	"crypto/sha256"
 	"flag"
 	"fmt"
 	"math/big"
 	"math/rand"
 	"time"
+
+	ecdh "github.com/zhuzilin/ecdh-psi/ecdh"
 )
 
 const (
@@ -17,6 +17,15 @@ const (
 
 const NUM_ELEMENT = 10
 const UPPER_BOUND = 20
+
+func createValues(n int) []*big.Int {
+	elements := make([]*big.Int, 0)
+	for i := 0; i < n; i++ {
+		element := big.NewInt(rand.Int63n(int64(UPPER_BOUND)))
+		elements = append(elements, element)
+	}
+	return elements
+}
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
@@ -43,45 +52,19 @@ func main() {
 		peerAddr = *aliceAddr
 		serverRole = CLIENT
 	}
+	// Create Connection.
 	conn := NewConn(serverRole, myAddr, peerAddr)
 	defer conn.Close()
 
-	// create values
-	elements := make([]*big.Int, 0)
-	for i := 0; i < NUM_ELEMENT; i++ {
-		element := big.NewInt(rand.Int63n(int64(UPPER_BOUND)))
-		elements = append(elements, element)
-	}
+	// Create values to do PSI.
+	elements := createValues(NUM_ELEMENT)
 	fmt.Printf("role: %v\n", *role)
 	fmt.Printf("elements of %v: %v\n", *role, elements)
 
-	// hash all values
-	hashes := make([]([]byte), 0)
-	for _, element := range elements {
-		sha := sha256.Sum256(element.Bytes())
-		hashes = append(hashes, sha[:])
-	}
+	// Step 1 for ECDH PSI.
+	hashes, exponent, xs, ys := ecdh.Step1(elements)
 
-	// encript hashes
-	exponent := big.NewInt(rand.Int63n(10) + 5)
-	// fmt.Printf("exponent of %v: %v\n", *role, exponent)
-
-	xs := make([]*big.Int, 0)
-	ys := make([]*big.Int, 0)
-	curve := elliptic.P256()
-	for _, hash := range hashes {
-		val := new(big.Int).SetBytes(hash)
-		x, y := GetPoint(curve, val)
-
-		x, y = curve.ScalarMult(x, y, exponent.Bytes())
-
-		// fmt.Printf("x[%v]: %v\n", i, x.String())
-		// fmt.Printf("y[%v]: %v\n", i, y.String())
-
-		xs = append(xs, x)
-		ys = append(ys, y)
-	}
-
+	// Send xs, ys to peer and receive the peerXs, peerYs.
 	peerXs := make([]*big.Int, 0)
 	peerYs := make([]*big.Int, 0)
 	numBytes := 256 / 8
@@ -98,33 +81,17 @@ func main() {
 		peerYs = append(peerYs, y)
 	}
 
-	for i := 0; i < len(xs); i++ {
-		x, y := curve.ScalarMult(peerXs[i], peerYs[i], exponent.Bytes())
-		peerXs[i] = x
-		peerYs[i] = y
-	}
+	// Step 2 for ECDH PSI.
+	peerHashes := ecdh.Step2(peerXs, peerYs, exponent)
 
-	peerHashes := make([]([]byte), 0)
-	for _, x := range peerXs {
-		sha := sha256.Sum256(x.Bytes())
-		peerHashes = append(peerHashes, sha[:])
-	}
-
+	// Send the peerHashes back to peer.
 	for i, peerHash := range peerHashes {
 		conn.SendReceiveSameLength(peerHash, buf)
 		copy(hashes[i], buf)
 	}
 
-	hashSet := make(map[string]bool)
-	for _, peerHash := range peerHashes {
-		hashSet[string(peerHash)] = true
-	}
+	// Get the intersection.
+	intersection := ecdh.Intersect(hashes, peerHashes, elements)
 
-	intersection := make([]string, 0)
-	for i, hash := range hashes {
-		if _, ok := hashSet[string(hash)]; ok {
-			intersection = append(intersection, elements[i].String())
-		}
-	}
 	fmt.Printf("intersection: %v\n", intersection)
 }
